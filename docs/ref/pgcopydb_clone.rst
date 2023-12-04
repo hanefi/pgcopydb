@@ -20,6 +20,7 @@ pgcopydb clone
 The command ``pgcopydb clone`` copies a database from the given source
 Postgres instance to the target Postgres instance.
 
+<<<<<<< HEAD
 ::
 
    pgcopydb clone: Clone an entire database from source to target
@@ -58,6 +59,9 @@ Postgres instance to the target Postgres instance.
      --create-slot                 Create the replication slot
      --origin                      Use this Postgres replication origin node name
      --endpos                      Stop replaying changes when reaching this LSN
+=======
+.. include:: ../include/clone.rst
+>>>>>>> 445c360... Automate updating help messages for commands
 
 .. _pgcopydb_fork:
 

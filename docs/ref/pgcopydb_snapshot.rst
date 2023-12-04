@@ -10,6 +10,7 @@ executes a SQL query to export a snapshot. The obtained snapshot is both
 printed on stdout and also in a file where other pgcopydb commands might
 expect to find it.
 
+<<<<<<< HEAD
 ::
 
    pgcopydb snapshot: Create and export a snapshot on the source database
@@ -21,6 +22,9 @@ expect to find it.
      --plugin                      Output plugin to use (test_decoding, wal2json)
      --wal2json-numeric-as-string  Print numeric data type as string when using wal2json output plugin
      --slot-name                   Use this Postgres replication slot name
+=======
+.. include:: ../include/snapshot.rst
+>>>>>>> 445c360... Automate updating help messages for commands
 
 Options
 -------
