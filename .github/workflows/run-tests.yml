@@ -11,30 +11,10 @@ on:
   workflow_dispatch:
 
 jobs:
-  build_package:
-    name: Run tests
+  stylechecker:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        PGVERSION:
-          - 16
-        TEST:
-          - ci
+    container: citus/stylechecker:latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-        with:
-          fetch-depth: 0 # all history for all branches and tags
-
-      - name: Set Version String From .git
-        run: make version
-
-      - name: Set environment variables
-        run: |
-            echo "TEST=${{ matrix.TEST }}" >> $GITHUB_ENV
-
-      - name: Run a test
-        timeout-minutes: 5
-        run: |
-          make tests/${TEST}
+    - uses: actions/checkout@v2
+    - name: Run stylechecker
+      run: citus_indent --check
