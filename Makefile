@@ -28,6 +28,7 @@ tests: test ;
 
 tests/ci:
 	sh ./ci/banned.h.sh
+	citus_indent --check
 
 tests/*: build
 	$(MAKE) -C tests $(notdir $@)

@@ -20,7 +20,7 @@ jobs:
         PGVERSION:
           - 16
         TEST:
-          - indent
+          - ci
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
