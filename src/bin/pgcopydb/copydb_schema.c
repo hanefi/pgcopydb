@@ -716,6 +716,7 @@ copydb_fetch_filtered_oids(CopyDataSpec *specs, PGSQL *pgsql)
 {
 	Catalogs *catalogs = &(specs->catalogs);
 	DatabaseCatalog *filtersDB = &(catalogs->filter);
+	DatabaseCatalog *sourceDB = &(catalogs->source);
 	SourceFilters *filters = &(specs->filters);
 
 	CatalogCounts count = { 0 };
@@ -726,6 +727,7 @@ copydb_fetch_filtered_oids(CopyDataSpec *specs, PGSQL *pgsql)
 		!filtersDB->sections[DATA_SECTION_EXTENSIONS].fetched)
 	{
 		if (!schema_list_extensions(pgsql, filtersDB) ||
+			!schema_list_dist_tables(pgsql, sourceDB) ||
 			!catalog_register_section(filtersDB, DATA_SECTION_EXTENSIONS))
 		{
 			/* errors have already been logged */
@@ -783,8 +785,6 @@ copydb_fetch_filtered_oids(CopyDataSpec *specs, PGSQL *pgsql)
 	if (filters->type == SOURCE_FILTER_TYPE_NONE)
 	{
 		/* still prepare the filters catalog hash-table (--skip-) */
-		DatabaseCatalog *sourceDB = &(catalogs->source);
-
 		if (!catalog_attach(filtersDB, sourceDB, "source"))
 		{
 			/* errors have already been logged */
@@ -860,8 +860,6 @@ copydb_fetch_filtered_oids(CopyDataSpec *specs, PGSQL *pgsql)
 	filters->type = type;
 
 	/* now prepare the filters catalog hash-table */
-	DatabaseCatalog *sourceDB = &(catalogs->source);
-
 	if (!catalog_attach(filtersDB, sourceDB, "source"))
 	{
 		/* errors have already been logged */

@@ -62,6 +62,10 @@ static char *sourceDBcreateDDLs[] = {
 	"create unique index s_t_qname on s_table(qname)",
 	"create unique index s_t_rlname on s_table(restore_list_name)",
 
+	"create table s_dist_table("
+	"  table_name text, table_type text, distribution_column text"
+	")",
+
 	"create table s_attr("
 	"  oid integer references s_table(oid), "
 	"  attnum integer, attypid integer, attname text, "
@@ -340,6 +344,7 @@ static char *filterDBdropDDLs[] = {
 	"drop table if exists s_extension",
 	"drop table if exists s_extension_config",
 	"drop table if exists s_extension_versions",
+	"drop table if exists s_dist_table",
 	"drop table if exists s_namespace",
 	"drop table if exists s_table",
 	"drop table if exists s_attr",
@@ -1250,6 +1255,37 @@ CopyDataSectionToString(CopyDataSection section)
 }
 
 
+char *
+CitusTableTypeToString(CitusTableType tableType)
+{
+	switch (tableType)
+	{
+		case CITUS_DISTRIBUTED_TABLE:
+		{
+			return "distributed";
+		}
+
+		case CITUS_REFERENCE_TABLE:
+		{
+			return "reference";
+		}
+
+		case CITUS_DISTRIBUTED_SCHEMA:
+		{
+			return "schema";
+		}
+
+		case CITUS_LOCAL_TABLE:
+		{
+			return "local";
+		}
+	}
+
+	/* keep compiler happy */
+	return "unknown";
+}
+
+
 /*
  * catalog_add_s_table INSERTs a SourceTable to our internal catalogs database.
  */
@@ -1677,6 +1713,7 @@ catalog_count_objects(DatabaseCatalog *catalog, CatalogCounts *count)
 		{
 			sql =
 				"select (select count(1) as rel from s_table), "
+				"       (select count(1) as ext from s_dist_table),"
 				"       (select count(1) as idx from s_index), "
 				"       (select count(1) as con from s_constraint),"
 				"       (select count(1) as seq from s_seq),"
@@ -5360,6 +5397,59 @@ catalog_add_s_extension(DatabaseCatalog *catalog, SourceExtension *extension)
 
 
 /*
+ * catalog_add_s_dist_table INSERTs a CitusTable to our internal catalogs
+ * database.
+ */
+bool
+catalog_add_s_dist_table(DatabaseCatalog *catalog, CitusTable *citusTable)
+{
+	sqlite3 *db = catalog->db;
+
+	if (db == NULL)
+	{
+		log_error("BUG: catalog_add_s_dist_table: db is NULL");
+		return false;
+	}
+
+	char *sql =
+		"insert into s_dist_table(table_name, table_type, distribution_column) "
+		"values($1, $2, $3)";
+
+	SQLiteQuery query = { 0 };
+
+	if (!catalog_sql_prepare(db, sql, &query))
+	{
+		/* errors have already been logged */
+		return false;
+	}
+
+	BindParam params[] = {
+		{ BIND_PARAMETER_TYPE_TEXT, "table_name", 0, citusTable->tableName },
+		{ BIND_PARAMETER_TYPE_TEXT, "table_type", 0, CitusTableTypeToString(
+			  citusTable->tableType) },
+		{ BIND_PARAMETER_TYPE_TEXT, "distribution_column", 0,
+		  citusTable->distributionColumn }
+	};
+
+	int count = sizeof(params) / sizeof(params[0]);
+
+	if (!catalog_sql_bind(&query, params, count))
+	{
+		/* errors have already been logged */
+		return false;
+	}
+
+	if (!catalog_sql_execute_once(&query))
+	{
+		/* errors have already been logged */
+		return false;
+	}
+
+	return true;
+}
+
+
+/*
  * catalog_add_s_extension_config INSERTs a SourceExtensionConfig to our internal
  * catalogs database.
  */
@@ -5808,6 +5898,212 @@ catalog_s_ext_extconfig_fetch(SQLiteQuery *query)
 	strlcpy(conf->condition,
 			(char *) sqlite3_column_text(query->ppStmt, 6),
 			bytes);
+
+	return true;
+}
+
+
+/*
+ * catalog_iter_s_dist_table iterates over the list of distributed tables in our
+ * catalogs.
+ */
+bool
+catalog_iter_s_dist_table(DatabaseCatalog *catalog,
+						  void *context,
+						  CitusTableIterFun *callback)
+{
+	CitusTableIterator *iter =
+		(CitusTableIterator *) calloc(1, sizeof(CitusTableIterator));
+
+	iter->catalog = catalog;
+
+	if (!catalog_iter_s_dist_table_init(iter))
+	{
+		/* errors have already been logged */
+		free(iter);
+		return false;
+	}
+
+	for (;;)
+	{
+		if (!catalog_iter_s_dist_table_next(iter))
+		{
+			/* errors have already been logged */
+			free(iter);
+			return false;
+		}
+
+		CitusTable *citusTable = iter->citusTable;
+
+		if (citusTable == NULL)
+		{
+			if (!catalog_iter_s_dist_table_finish(iter))
+			{
+				/* errors have already been logged */
+				free(iter);
+				return false;
+			}
+
+			break;
+		}
+
+		/* now call the provided callback */
+		if (!(*callback)(context, citusTable))
+		{
+			log_error("Failed to iterate over list of distributed tables, "
+					  "see above for details");
+			return false;
+		}
+	}
+
+	free(iter);
+
+	return true;
+}
+
+
+/*
+ * catalog_iter_s_dist_table_init initializes an Interator over our catalog of
+ * CitusTable entries.
+ */
+bool
+catalog_iter_s_dist_table_init(CitusTableIterator *iter)
+{
+	sqlite3 *db = iter->catalog->db;
+
+	if (db == NULL)
+	{
+		log_error("BUG: Failed to initialize s_dist_table iterator: db is NULL");
+		return false;
+	}
+
+	iter->citusTable = (CitusTable *) calloc(1, sizeof(CitusTable));
+
+	if (iter->citusTable == NULL)
+	{
+		log_error(ALLOCATION_FAILED_ERROR);
+		return false;
+	}
+
+	char *sql =
+		"  select table_name, table_type, distribution_column "
+		"    from s_dist_table "
+		"order by table_name";
+
+	SQLiteQuery *query = &(iter->query);
+
+	query->context = iter->citusTable;
+	query->fetchFunction = &catalog_s_dist_table_fetch;
+
+	if (!catalog_sql_prepare(db, sql, query))
+	{
+		/* errors have already been logged */
+		return false;
+	}
+
+	return true;
+}
+
+
+/*
+ * catalog_iter_s_dist_table_next fetches the next CitusTable entry in our
+ * catalogs.
+ */
+bool
+catalog_iter_s_dist_table_next(CitusTableIterator *iter)
+{
+	SQLiteQuery *query = &(iter->query);
+
+	int rc = catalog_sql_step(query);
+
+	if (rc == SQLITE_DONE)
+	{
+		free(iter->citusTable);
+		iter->citusTable = NULL;
+
+		return true;
+	}
+
+	if (rc != SQLITE_ROW)
+	{
+		log_error("Failed to step through statement: %s", query->sql);
+		log_error("[SQLite] %s", sqlite3_errmsg(query->db));
+		return false;
+	}
+
+	return catalog_s_dist_table_fetch(query);
+}
+
+
+/*
+ * catalog_s_dist_table_fetch fetches a CitusTable entry from a SQLite
+ * ppStmt result set.
+ */
+bool
+catalog_s_dist_table_fetch(SQLiteQuery *query)
+{
+	CitusTable *citusTable = (CitusTable *) query->context;
+
+	/* cleanup the memory area before re-use */
+	bzero(citusTable, sizeof(CitusTable));
+
+	strlcpy(citusTable->tableName,
+			(char *) sqlite3_column_text(query->ppStmt, 0),
+			sizeof(citusTable->tableName));
+
+	const char *tableType = (const char *) sqlite3_column_text(query->ppStmt, 1);
+
+	if (strcmp(tableType, "reference") == 0)
+	{
+		citusTable->tableType = CITUS_REFERENCE_TABLE;
+	}
+	else if (strcmp(tableType, "distributed") == 0)
+	{
+		citusTable->tableType = CITUS_DISTRIBUTED_TABLE;
+	}
+	else if (strcmp(tableType, "local") == 0)
+	{
+		citusTable->tableType = CITUS_LOCAL_TABLE;
+	}
+	else if (strcmp(tableType, "schema") == 0)
+	{
+		citusTable->tableType = CITUS_DISTRIBUTED_SCHEMA;
+	}
+	else
+	{
+		log_error("BUG: Unknown table type: %s", tableType);
+		return false;
+	}
+
+	strlcpy(citusTable->distributionColumn,
+			(char *) sqlite3_column_text(query->ppStmt, 2),
+			sizeof(citusTable->distributionColumn));
+
+	return true;
+}
+
+
+/*
+ * catalog_iter_s_dist_table_finish cleans-up the internal memory used for the
+ * iteration.
+ */
+bool
+catalog_iter_s_dist_table_finish(CitusTableIterator *iter)
+{
+	SQLiteQuery *query = &(iter->query);
+
+	/* in case we finish before reaching the DONE step */
+	if (iter->citusTable != NULL)
+	{
+		free(iter->citusTable);
+		iter->citusTable = NULL;
+	}
+
+	if (!catalog_sql_finalize(query))
+	{
+		/* errors have already been logged */
+		return false;
+	}
 
 	return true;
 }

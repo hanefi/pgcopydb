@@ -58,6 +58,7 @@ bool catalog_section_state(DatabaseCatalog *catalog, CatalogSection *section);
 bool catalog_section_fetch(SQLiteQuery *query);
 
 char * CopyDataSectionToString(CopyDataSection section);
+char * CitusTableTypeToString(CitusTableType tableType);
 
 /*
  * Statistics over our catalogs.
@@ -105,6 +106,7 @@ bool catalog_count_fetch(SQLiteQuery *query);
  * Tables and their attributes and parts (COPY partitioning).
  */
 bool catalog_add_s_table(DatabaseCatalog *catalog, SourceTable *table);
+bool catalog_add_s_dist_table(DatabaseCatalog *catalog, CitusTable *table);
 bool catalog_add_attributes(DatabaseCatalog *catalog, SourceTable *table);
 bool catalog_add_s_table_parts(DatabaseCatalog *catalog, SourceTable *table);
 
@@ -402,16 +404,21 @@ bool catalog_s_role_fetch(SQLiteQuery *query);
  */
 bool catalog_add_s_extension(DatabaseCatalog *catalog,
 							 SourceExtension *extension);
-
+bool catalog_add_s_dist_table(DatabaseCatalog *catalog,
+							  CitusTable *citusTable);
 bool catalog_add_s_extension_config(DatabaseCatalog *catalog,
 									SourceExtensionConfig *config);
 
 typedef bool (SourceExtensionIterFun)(void *context, SourceExtension *ext);
+typedef bool (CitusTableIterFun)(void *context, CitusTable *citusTable);
 
 bool catalog_iter_s_extension(DatabaseCatalog *catalog,
 							  void *context,
 							  SourceExtensionIterFun *callback);
 
+bool catalog_iter_s_dist_table(DatabaseCatalog *catalog,
+							   void *context,
+							   CitusTableIterFun *callback);
 typedef struct SourceExtensionIterator
 {
 	DatabaseCatalog *catalog;
@@ -419,10 +426,22 @@ typedef struct SourceExtensionIterator
 	SQLiteQuery query;
 } SourceExtensionIterator;
 
+typedef struct CitusTableIterator
+{
+	DatabaseCatalog *catalog;
+	CitusTable *citusTable;
+	SQLiteQuery query;
+} CitusTableIterator;
+
 bool catalog_iter_s_extension_init(SourceExtensionIterator *iter);
 bool catalog_iter_s_extension_next(SourceExtensionIterator *iter);
 bool catalog_s_extension_fetch(SQLiteQuery *query);
 bool catalog_iter_s_extension_finish(SourceExtensionIterator *iter);
+
+bool catalog_iter_s_dist_table_init(CitusTableIterator *iter);
+bool catalog_iter_s_dist_table_next(CitusTableIterator *iter);
+bool catalog_s_dist_table_fetch(SQLiteQuery *query);
+bool catalog_iter_s_dist_table_finish(CitusTableIterator *iter);
 
 typedef struct SourceExtConfigIterator
 {

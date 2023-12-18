@@ -29,6 +29,7 @@ ListDBOptions listDBoptions = { 0 };
 static int cli_list_db_getopts(int argc, char **argv);
 static void cli_list_databases(int argc, char **argv);
 static void cli_list_extensions(int argc, char **argv);
+static void cli_list_dist_tables(int argc, char **argv);
 static void cli_list_extension_versions(int argc, char **argv);
 static void cli_list_extension_requirements(int argc, char **argv);
 static void cli_list_collations(int argc, char **argv);
@@ -50,6 +51,8 @@ static bool copydb_init_specs_from_listdboptions(CopyDataSpec *copySpecs,
 static bool cli_list_databases_hook(void *context, SourceDatabase *dat);
 static bool cli_list_extension_json_hook(void *ctx, SourceExtension *ext);
 static bool cli_list_extension_print_hook(void *ctx, SourceExtension *ext);
+static bool cli_list_dist_table_json_hook(void *ctx, CitusTable *citusTable);
+static bool cli_list_dist_table_print_hook(void *ctx, CitusTable *citusTable);
 static bool cli_list_colls_hook(void *context, SourceCollation *coll);
 static bool cli_list_table_print_hook(void *context, SourceTable *table);
 static bool cli_list_table_part_print_hook(void *ctx, SourceTableParts *part);
@@ -78,6 +81,16 @@ static CommandLine list_extensions_command =
 		"  --requirements        List extensions requirements\n",
 		cli_list_db_getopts,
 		cli_list_extensions);
+
+static CommandLine list_dist_tables_command =
+	make_command(
+		"dist-tables",
+		"List all the distributed tables",
+		" --source ... ",
+		"  --source              Postgres URI to the source database\n"
+		"  --json                Format the output using JSON\n",
+		cli_list_db_getopts,
+		cli_list_dist_tables);
 
 static CommandLine list_collations_command =
 	make_command(
@@ -183,6 +196,7 @@ static CommandLine list_progress_command =
 static CommandLine *list_subcommands[] = {
 	&list_catalogs_command,
 	&list_extensions_command,
+	&list_dist_tables_command,
 	&list_collations_command,
 	&list_tables_command,
 	&list_table_parts_command,
@@ -830,6 +844,136 @@ cli_list_extension_print_hook(void *ctx, SourceExtension *ext)
 			ext->extnamespace,
 			ext->config.count,
 			config);
+
+	return true;
+}
+
+
+typedef struct ListDistributedTableContext
+{
+	DatabaseCatalog *catalog;
+	JSON_Array *jsArray;
+} ListDistributedTableContext;
+
+
+/*
+ * cli_list_dist_tables implements the command: pgcopydb list dist-tables
+ */
+static void
+cli_list_dist_tables(int argc, char **argv)
+{
+	CopyDataSpec copySpecs = { 0 };
+
+	bool createWorkDir = true;
+
+	if (!copydb_init_specs_from_listdboptions(&copySpecs,
+											  &listDBoptions,
+											  DATA_SECTION_ALL, /* TODO: not sure about this line */
+											  createWorkDir))
+	{
+		/* errors have already been logged */
+		exit(EXIT_CODE_BAD_ARGS);
+	}
+
+	/*
+	 * Prepare our internal catalogs for storing the source database catalog
+	 * query results. When --force is used then we fetch the catalogs again.
+	 */
+	if (!copydb_fetch_schema_and_prepare_specs(&copySpecs))
+	{
+		log_error("Failed to fetch a local copy of the catalogs, "
+				  "see above for details");
+		exit(EXIT_CODE_INTERNAL_ERROR);
+	}
+
+	DatabaseCatalog *catalog = &(copySpecs.catalogs.source);
+
+	if (outputJSON)
+	{
+		JSON_Value *js = json_value_init_array();
+		JSON_Array *jsArray = json_value_get_array(js);
+
+		ListDistributedTableContext context = {
+			.catalog = catalog,
+			.jsArray = jsArray
+		};
+
+		if (!catalog_iter_s_dist_table(catalog,
+									   &context,
+									   &cli_list_dist_table_json_hook))
+		{
+			exit(EXIT_CODE_INTERNAL_ERROR);
+		}
+
+		char *serialized_string = json_serialize_to_string_pretty(js);
+
+		fformat(stdout, "%s\n", serialized_string);
+
+		json_free_serialized_string(serialized_string);
+		json_value_free(js);
+	}
+	else
+	{
+		fformat(stdout, "%35s | %12s | %15s\n",
+				"Table Name",
+				"Table Type",
+				"Distribution Column");
+
+		fformat(stdout, "%35s-+-%12s-+-%15s\n",
+				"-----------------------------------",
+				"------------",
+				"--------------------");
+
+		ListDistributedTableContext context = { .catalog = catalog };
+
+		if (!catalog_iter_s_dist_table(catalog,
+									   &context,
+									   &cli_list_dist_table_print_hook))
+		{
+			exit(EXIT_CODE_INTERNAL_ERROR);
+		}
+
+		fformat(stdout, "\n");
+	}
+}
+
+
+/*
+ * cli_list_dist_table_json_hook is an iterator callback function.
+ */
+static bool
+cli_list_dist_table_json_hook(void *ctx, CitusTable *citusTable)
+{
+	ListDistributedTableContext *context = (ListDistributedTableContext *) ctx;
+
+	/* DatabaseCatalog *catalog = context->catalog; */
+	JSON_Array *jsArray = context->jsArray;
+
+	JSON_Value *jsDistTable = json_value_init_object();
+	JSON_Object *jsDistTableObj = json_value_get_object(jsDistTable);
+
+	json_object_set_string(jsDistTableObj, "name", citusTable->tableName);
+	json_object_set_string(jsDistTableObj, "type", CitusTableTypeToString(
+							   citusTable->tableType));
+	json_object_set_string(jsDistTableObj, "distribution_column",
+						   citusTable->distributionColumn);
+
+	json_array_append_value(jsArray, jsDistTable);
+
+	return true;
+}
+
+
+/*
+ * cli_list_dist_table_print_hook is an iterator callback function.
+ */
+static bool
+cli_list_dist_table_print_hook(void *ctx, CitusTable *citusTable)
+{
+	fformat(stdout, "%35s | %12s | %15s\n",
+			citusTable->tableName,
+			CitusTableTypeToString(citusTable->tableType),
+			citusTable->distributionColumn);
 
 	return true;
 }

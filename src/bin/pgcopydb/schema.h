@@ -46,6 +46,28 @@ typedef struct SourceSchema
 	char restoreListName[RESTORE_LIST_NAMEDATALEN];
 } SourceSchema;
 
+typedef enum
+{
+	CITUS_DISTRIBUTED_TABLE,
+	CITUS_REFERENCE_TABLE,
+	CITUS_DISTRIBUTED_SCHEMA,
+	CITUS_LOCAL_TABLE
+} CitusTableType;
+
+typedef struct CitusTable
+{
+	char tableName[PG_NAMEDATALEN];
+	CitusTableType tableType;
+	char distributionColumn[PG_NAMEDATALEN];
+} CitusTable;
+
+
+typedef struct CitusTableArray
+{
+	int count;
+	CitusTable *array;          /* malloc'ed area */
+} CitusTableArray;
+
 
 /*
  * SourceExtension caches the information we need about all the extensions
@@ -75,6 +97,7 @@ typedef struct SourceExtension
 	char extnamespace[PG_NAMEDATALEN];
 	bool extrelocatable;
 	SourceExtensionConfigArray config;
+	CitusTableArray citusTables; /* {0} when not citus */
 } SourceExtension;
 
 
@@ -384,6 +407,8 @@ bool schema_list_roles(PGSQL *pgsql, DatabaseCatalog *catalog);
 bool schema_list_ext_schemas(PGSQL *pgsql, DatabaseCatalog *catalog);
 
 bool schema_list_extensions(PGSQL *pgsql, DatabaseCatalog *catalog);
+
+bool schema_list_dist_tables(PGSQL *pgsql, DatabaseCatalog *catalog);
 
 bool schema_list_ext_versions(PGSQL *pgsql, ExtensionsVersionsArray *array);
 

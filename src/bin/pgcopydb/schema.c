@@ -81,6 +81,14 @@ typedef struct SourceExtensionArrayContext
 	bool parsedOk;
 } SourceExtensionArrayContext;
 
+/* Context used when fetching all the Citus tables */
+typedef struct CitusTableArrayContext
+{
+	char sqlstate[SQLSTATE_LENGTH];
+	DatabaseCatalog *catalog;
+	bool parsedOk;
+} CitusTableArrayContext;
+
 /* Context used when fetching extension versions as a json array */
 typedef struct ExtensionsVersionsArrayContext
 {
@@ -164,6 +172,8 @@ static bool parseDatabaseProperty(PGresult *result,
 								  SourceProperty *property);
 
 static void getExtensionList(void *ctx, PGresult *result);
+
+static void getCitusTableList(void *ctx, PGresult *result);
 
 static bool parseCurrentExtension(PGresult *result,
 								  int rowNumber,
@@ -437,6 +447,33 @@ schema_list_extensions(PGSQL *pgsql, DatabaseCatalog *catalog)
 	if (!parseContext.parsedOk)
 	{
 		log_error("Failed to list extensions");
+		return false;
+	}
+
+	return true;
+}
+
+
+bool
+schema_list_dist_tables(PGSQL *pgsql, DatabaseCatalog *catalog)
+{
+	CitusTableArrayContext parseContext = { { 0 }, catalog, false };
+
+	char *sql =
+		"SELECT table_name, citus_table_type, distribution_column "
+		"FROM public.citus_tables;";
+
+	if (!pgsql_execute_with_params(pgsql, sql,
+								   0, NULL, NULL,
+								   &parseContext, &getCitusTableList))
+	{
+		log_error("Failed to list distributed tables");
+		return false;
+	}
+
+	if (!parseContext.parsedOk)
+	{
+		log_error("Failed to list distributed tables");
 		return false;
 	}
 
@@ -4315,6 +4352,115 @@ getExtensionList(void *ctx, PGresult *result)
 	}
 
 	free(extension);
+
+	context->parsedOk = parsedOk;
+}
+
+
+/* getCitusTableList loops over the SQL result for the citus table array query
+ * and allocates an array of citus tables then populates it with the query
+ * result.
+ */
+static void
+getCitusTableList(void *ctx, PGresult *result)
+{
+	CitusTableArrayContext *context =
+		(CitusTableArrayContext *) ctx;
+	int nTuples = PQntuples(result);
+
+	log_debug("getCitusTableList: %d", nTuples);
+
+	if (PQnfields(result) != 3)
+	{
+		log_error("Query returned %d columns, expected 3", PQnfields(result));
+		context->parsedOk = false;
+		return;
+	}
+
+	bool parsedOk = true;
+
+	for (int rowNumber = 0; rowNumber < nTuples; rowNumber++)
+	{
+		CitusTable *citusTable =
+			(CitusTable *) calloc(1, sizeof(CitusTable));
+
+		if (citusTable == NULL)
+		{
+			log_error(ALLOCATION_FAILED_ERROR);
+			parsedOk = false;
+			break;
+		}
+
+		/* 1. table_name */
+		char *value = PQgetvalue(result, rowNumber, 0);
+		int length = strlcpy(citusTable->tableName, value, NAMEDATALEN);
+
+		if (length >= NAMEDATALEN)
+		{
+			log_error("Citus table name \"%s\" is %d bytes long, "
+					  "the maximum expected is %d (NAMEDATALEN - 1)",
+					  value, length, NAMEDATALEN - 1);
+			parsedOk = false;
+			break;
+		}
+
+		/* 2. table_type */
+		value = PQgetvalue(result, rowNumber, 1);
+
+		if (!strcmp(value, "distributed"))
+		{
+			citusTable->tableType = CITUS_DISTRIBUTED_TABLE;
+		}
+		else if (!strcmp(value, "reference"))
+		{
+			citusTable->tableType = CITUS_REFERENCE_TABLE;
+		}
+		else if (!strcmp(value, "schema"))
+		{
+			citusTable->tableType = CITUS_DISTRIBUTED_SCHEMA;
+		}
+		else if (!strcmp(value, "local"))
+		{
+			citusTable->tableType = CITUS_LOCAL_TABLE;
+		}
+		else
+		{
+			log_error("Invalid table type \"%s\"", value);
+			parsedOk = false;
+			break;
+		}
+
+		/* 3. distribution_column */
+		value = PQgetvalue(result, rowNumber, 2);
+		length = strlcpy(citusTable->distributionColumn, value, NAMEDATALEN);
+
+		if (length >= NAMEDATALEN)
+		{
+			log_error("Citus distribution column \"%s\" is %d bytes long, "
+					  "the maximum expected is %d (NAMEDATALEN - 1)",
+					  value, length, NAMEDATALEN - 1);
+			parsedOk = false;
+			break;
+		}
+
+		log_trace("getCitusTableList: %s %s %s",
+				  citusTable->tableName,
+				  CitusTableTypeToString(citusTable->tableType),
+				  citusTable->distributionColumn);
+
+		if (context->catalog != NULL && context->catalog->db != NULL)
+		{
+			if (!catalog_add_s_dist_table(context->catalog, citusTable))
+			{
+				/* errors have already been logged */
+				parsedOk = false;
+				free(citusTable);
+				break;
+			}
+		}
+
+		free(citusTable);
+	}
 
 	context->parsedOk = parsedOk;
 }
