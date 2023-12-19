@@ -4823,8 +4823,6 @@ getTableArray(void *ctx, PGresult *result)
 	SourceTableArrayContext *context = (SourceTableArrayContext *) ctx;
 	int nTuples = PQntuples(result);
 
-	log_debug("getTableArray: %d", nTuples);
-
 	if (PQnfields(result) != 12)
 	{
 		log_error("Query returned %d columns, expected 12", PQnfields(result));
@@ -5148,8 +5146,6 @@ getSequenceArray(void *ctx, PGresult *result)
 	SourceSequenceArrayContext *context = (SourceSequenceArrayContext *) ctx;
 	int nTuples = PQntuples(result);
 
-	log_debug("getSequenceArray: %d", nTuples);
-
 	if (PQnfields(result) != 7)
 	{
 		log_error("Query returned %d columns, expected 7", PQnfields(result));
@@ -5320,8 +5316,6 @@ getIndexArray(void *ctx, PGresult *result)
 {
 	SourceIndexArrayContext *context = (SourceIndexArrayContext *) ctx;
 	int nTuples = PQntuples(result);
-
-	log_debug("getIndexArray: %d", nTuples);
 
 	if (PQnfields(result) != 16)
 	{
@@ -5830,32 +5824,14 @@ getPartitionList(void *ctx, PGresult *result)
 		return;
 	}
 
-	/* we're not supposed to re-cycle arrays here */
-	if (context->table->partsArray.array != NULL)
-	{
-		/* issue a warning but let's try anyway */
-		log_warn("BUG? context's partsArray is not null in getPartitionList");
-
-		free(context->table->partsArray.array);
-		context->table->partsArray.array = NULL;
-		context->table->partsArray.count = 0;
-	}
-
-	context->table->partsArray.count = nTuples;
-	context->table->partsArray.array =
-		(SourceTableParts *) calloc(nTuples, sizeof(SourceTableParts));
-
-	if (context->table->partsArray.array == NULL)
-	{
-		log_fatal(ALLOCATION_FAILED_ERROR);
-		return;
-	}
-
 	bool parsedOk = true;
 
 	for (int rowNumber = 0; rowNumber < nTuples; rowNumber++)
 	{
-		SourceTableParts *parts = &(table->partsArray.array[rowNumber]);
+		SourceTableParts *parts = &(table->partition);
+
+		/* make sure to clean-up the memory area we keep re-using */
+		bzero(parts, sizeof(SourceTableParts));
 
 		if (!parseCurrentPartition(result, rowNumber, parts))
 		{
@@ -5869,25 +5845,15 @@ getPartitionList(void *ctx, PGresult *result)
 				  (long long) parts->min,
 				  (long long) parts->max,
 				  parts->partCount);
-	}
 
-	if (parsedOk)
-	{
 		if (context->catalog != NULL && context->catalog->db != NULL)
 		{
-			if (!catalog_add_s_table_parts(context->catalog, table))
+			if (!catalog_add_s_table_part(context->catalog, table))
 			{
 				/* errors have already been logged */
 				parsedOk = false;
 			}
 		}
-	}
-
-	if (!parsedOk)
-	{
-		free(context->table->partsArray.array);
-		context->table->partsArray.array = NULL;
-		context->table->partsArray.count = 0;
 	}
 
 	context->parsedOk = parsedOk;
