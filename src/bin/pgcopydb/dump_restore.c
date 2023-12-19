@@ -201,6 +201,104 @@ copydb_target_prepare_schema(CopyDataSpec *specs)
 	return true;
 }
 
+/*
+ * copydb_target_create_citus_tables creates the citus tables on the target
+ * database.
+ */
+bool
+copydb_target_create_citus_tables(CopyDataSpec *specs)
+{
+	DatabaseCatalog *sourceDB = &(specs->catalogs.source);
+
+	// TODO: add stats and early exit if no citus tables
+
+	PGSQL dst = { 0 };
+
+	if (!pgsql_init(&dst, specs->connStrings.target_pguri, PGSQL_CONN_TARGET))
+	{
+		/* errors have already been logged */
+		return false;
+	}
+
+	if (!pgsql_begin(&dst))
+	{
+		/* errors have already been logged */
+		return false;
+	}
+
+	if (!catalog_iter_s_dist_table(sourceDB,
+							  &dst,
+							  &pgsql_create_citus_table))
+	{
+		/* errors have already been logged */
+		(void) pgsql_rollback(&dst);
+		return false;
+	}
+
+	if (!pgsql_commit(&dst))
+	{
+		/* errors have already been logged */
+		return false;
+	}
+
+	return true;
+}
+
+
+/*
+ * pgsql_create_citus_table creates the distributed table. Currently we support
+ * distributed tables, reference tables and citus local tables.
+ */
+bool
+pgsql_create_citus_table(void *ctx, CitusTable *table)
+{
+	PGSQL *pgsql = (PGSQL *) ctx;
+	char *sql = NULL;
+	int paramCount = 0;
+	const Oid paramTypes[2] = { TEXTOID, TEXTOID };
+	const char *paramValues[2] = { table->tableName, table->distributionColumn };
+
+	switch (table->tableType)
+	{
+	case CITUS_DISTRIBUTED_TABLE:
+		sql = "SELECT create_distributed_table($1, $2)";
+		paramCount = 2;
+
+		log_sql("Creating distributed table \"%s\" with distribution column \"%s\"",
+				table->tableName, table->distributionColumn);
+		break;
+
+	case CITUS_REFERENCE_TABLE:
+		sql = "SELECT create_reference_table($1)";
+		paramCount = 1;
+
+		log_sql("Creating reference table \"%s\"", table->tableName);
+		break;
+
+	case CITUS_LOCAL_TABLE:
+		sql = "SELECT create_citus_local_table($1)";
+		paramCount = 1;
+
+		log_sql("Creating citus local table \"%s\"", table->tableName);
+		break;
+
+	case CITUS_DISTRIBUTED_SCHEMA:
+	default:
+		log_error("BUG: not supported Citus table type %s", CitusTableTypeToString(table->tableType));
+		return false;
+	}
+
+	if (!pgsql_execute_with_params(pgsql, sql,
+								   paramCount, paramTypes, paramValues,
+								   NULL, NULL))
+	{
+		log_error("Failed to create Citus table \"%s\"", table->tableName);
+		return false;
+	}
+
+	return true;
+}
+
 
 typedef struct CopyPropertiesContext
 {

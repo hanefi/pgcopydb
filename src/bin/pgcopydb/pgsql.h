@@ -24,7 +24,6 @@
 #include "parsing_utils.h"
 #include "pg_utils.h"
 
-
 /*
  * OID values from PostgreSQL src/include/catalog/pg_type.h
  */

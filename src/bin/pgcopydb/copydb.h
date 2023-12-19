@@ -373,6 +373,8 @@ bool copydb_dump_source_schema(CopyDataSpec *specs,
 							   const char *snapshot,
 							   PostgresDumpSection section);
 bool copydb_target_prepare_schema(CopyDataSpec *specs);
+bool copydb_target_create_citus_tables(CopyDataSpec *specs);
+bool pgsql_create_citus_table(void *ctx, CitusTable *table); // TODO: move to pgsql.h or rename ?
 bool copydb_copy_database_properties(CopyDataSpec *specs);
 bool copydb_target_drop_tables(CopyDataSpec *specs);
 bool copydb_target_finalize_schema(CopyDataSpec *specs);

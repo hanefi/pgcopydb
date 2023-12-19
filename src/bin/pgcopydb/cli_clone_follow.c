@@ -565,6 +565,14 @@ cloneDB(CopyDataSpec *copySpecs)
 		return false;
 	}
 
+	log_info("STEP 3,5: distribute Citus tables on the target database");
+
+	if (!copydb_target_create_citus_tables(copySpecs))
+	{
+		/* errors have already been logged */
+		return false;
+	}
+
 	(void) summary_set_current_time(timings, TIMING_STEP_AFTER_PREPARE_SCHEMA);
 
 	/* STEPs 4, 5, 6, 7, 8, and 9 are printed when starting the sub-processes */

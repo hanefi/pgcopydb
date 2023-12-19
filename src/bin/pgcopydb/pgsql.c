@@ -29,6 +29,7 @@
 #include "pg_utils.h"
 #include "signals.h"
 #include "string_utils.h"
+#include "schema.h"
 
 static char * ConnectionTypeToString(ConnectionType connectionType);
 static void log_connection_error(PGconn *connection, int logLevel);
