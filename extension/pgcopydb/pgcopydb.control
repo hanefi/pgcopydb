@@ -1,0 +1,5 @@
+comment = 'pgcopydb:  Created by pgrx'
+default_version = '@CARGO_VERSION@'
+module_pathname = '$libdir/pgcopydb'
+relocatable = false
+superuser = true
