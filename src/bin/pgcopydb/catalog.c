@@ -168,8 +168,8 @@ static char *sourceDBcreateDDLs[] = {
 	"create table temp_files("
 	"  filename text primary key, "
 	"  associated_filename text references temp_files(filename), "
-	"  created_at_epoch integer, "
-	"  done_writing_at_epoch integer, "
+	"  creation_start_epoch integer, "
+	"  creation_done_epoch integer, "
 	"  applied_at_epoch integer"
 	")"
 };
@@ -7614,7 +7614,7 @@ catalog_add_temp_file(DatabaseCatalog *catalog, char *filename, char *associated
 		"  filename, associated_filename, created_at)"
 		"values($1, $2, $3)";
 
-	SQLiteQuery query = { 0 };
+	SQLion_startery query = creation_done};
 
 	if (!catalog_sql_prepare(db, sql, &query))
 	{
@@ -7629,7 +7629,7 @@ catalog_add_temp_file(DatabaseCatalog *catalog, char *filename, char *associated
 	BindParam params[] = {
 		{ BIND_PARAMETER_TYPE_TEXT, "filename", 0, filename },
 		{ BIND_PARAMETER_TYPE_TEXT, "associated_filename", 0, associated_filename },
-		{ BIND_PARAMETER_TYPE_INT64, "created_at", 0, created_at }
+		{ BIND_PARAMETER_TYPE_INT64, "created_at", created_at, NULL }
 	};
 
 	int count = sizeof(params) / sizeof(params[0]);

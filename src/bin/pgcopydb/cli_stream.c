@@ -980,6 +980,8 @@ cli_stream_transform(int argc, char **argv)
 			exit(EXIT_CODE_INTERNAL_ERROR);
 		}
 
+		catalog_add_temp_file(specs.sourceDB, sqlfilename, jsonfilename);
+
 		bool success = stream_transform_file(&specs, jsonfilename, sqlfilename);
 
 		pgsql_finish(&(specs.transformPGSQL));
