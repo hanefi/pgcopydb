@@ -162,12 +162,21 @@ static char *sourceDBcreateDDLs[] = {
 	"  startpos pg_lsn, endpos pg_lsn, apply bool, "
 	" write_lsn pg_lsn, flush_lsn pg_lsn, replay_lsn pg_lsn)",
 
-	"create table lsn_tracking(source pg_lsn, target pg_lsn)"
+	"create table lsn_tracking(source pg_lsn, target pg_lsn)",
+
+	/* tables for temporary files */
+	"create table temp_files("
+	"  filename text primary key, "
+	"  associated_filename text references temp_files(filename), "
+	"  created_at_epoch integer, "
+	"  done_writing_at_epoch integer, "
+	"  applied_at_epoch integer"
+	")"
 };
 
 
 /*
- * pgcopydb implements filtering which needs to be implement by editin the
+ * pgcopydb implements filtering which needs to be implement by editing the
  * `pg_restore --list` archive TOC. The TOC contains OIDs "restore list names",
  * and some TOC entries do not have an OID.
  *
@@ -391,6 +400,8 @@ static char *sourceDBdropDDLs[] = {
 	"drop table if exists s_table_parts_done",
 	"drop table if exists s_table_indexes_done",
 
+	// move this to the end when ready.
+	// "drop table if exist temp_files",
 	"drop table if exists sentinel"
 };
 
@@ -7585,4 +7596,56 @@ catalog_stop_timing(TopLevelTiming *timing)
 						 timing->ppDuration,
 						 INTSTRING_MAX_DIGITS);
 	}
+}
+
+bool
+catalog_add_temp_file(DatabaseCatalog *catalog, char *filename, char *associated_filename)
+{
+	sqlite3 *db = catalog->db;
+
+	if (db == NULL)
+	{
+		log_error("BUG: catalog_add_temp_file: db is NULL");
+		return false;
+	}
+
+	char *sql =
+		"insert into temp_files("
+		"  filename, associated_filename, created_at)"
+		"values($1, $2, $3)";
+
+	SQLiteQuery query = { 0 };
+
+	if (!catalog_sql_prepare(db, sql, &query))
+	{
+		/* errors have already been logged */
+		return false;
+	}
+
+	uint64_t created_at = time(NULL);
+	INSTR_TIME_SET_CURRENT(created_at);
+
+	/* bind our parameters now */
+	BindParam params[] = {
+		{ BIND_PARAMETER_TYPE_TEXT, "filename", 0, filename },
+		{ BIND_PARAMETER_TYPE_TEXT, "associated_filename", 0, associated_filename },
+		{ BIND_PARAMETER_TYPE_INT64, "created_at", 0, created_at }
+	};
+
+	int count = sizeof(params) / sizeof(params[0]);
+
+	if (!catalog_sql_bind(&query, params, count))
+	{
+		/* errors have already been logged */
+		return false;
+	}
+
+	/* now execute the query, which does not return any row */
+	if (!catalog_sql_execute_once(&query))
+	{
+		/* errors have already been logged */
+		return false;
+	}
+
+	return true;
 }

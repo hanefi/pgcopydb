@@ -633,4 +633,7 @@ bool catalog_bind_parameters(sqlite3 *db,
 							 BindParam *params,
 							 int count);
 
+bool catalog_add_temp_file(DatabaseCatalog *catalog, char *filename,
+						   char *associated_filename);
+
 #endif  /* CATALOG_H */
