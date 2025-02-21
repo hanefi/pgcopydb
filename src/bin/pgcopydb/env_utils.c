@@ -241,6 +241,7 @@ get_env_using_parsers_from_file(EnvParserArray *parsers)
 
 	if (!file_iter_lines(envFilePath, BUFSIZE, parsers, process_env_line))
 	{
+		log_error("Failed to read %s file", envFilePath);
 		return false;
 	}
 

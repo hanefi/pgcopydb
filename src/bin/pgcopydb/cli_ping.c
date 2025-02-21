@@ -27,7 +27,7 @@ CommandLine ping_command =
 		" --source ... --target ... ",
 		"  --source                      Postgres URI to the source database\n"
 		"  --target                      Postgres URI to the target database\n"
-		"  --connection-retry-timeout    Number of seconds to retry before connection times out\n",
+		"  --connection-retry-timeout    Number of seconds to retry connecting before timing out\n",
 		cli_ping_getopts,
 		cli_ping);
 

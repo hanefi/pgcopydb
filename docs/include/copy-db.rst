@@ -23,5 +23,5 @@
      --not-consistent              Allow taking a new snapshot on the source database
      --snapshot                    Use snapshot obtained with pg_export_snapshot
      --use-copy-binary             Use the COPY BINARY format for COPY operations
-     --connection-retry-timeout    Number of seconds to retry before connection times out
+     --connection-retry-timeout    Number of seconds to retry connecting before timing out
    

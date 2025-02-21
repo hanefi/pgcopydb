@@ -184,13 +184,11 @@ cli_copydb_getenv_split(SplitTableLargerThan *splitTablesLargerThan)
 
 
 /*
- * cli_copydb_getenv_file reads the .env file and fills-in the command line options
+ * reads the .env file and fills-in the command line options
  */
 bool
 cli_copydb_getenv_file(CopyDBOptions *options)
 {
-	int errors = 0;
-
 	EnvParser parsers[] = {
 		{ PGCOPYDB_SOURCE_PGURI, ENV_TYPE_STR_PTR,
 		  &(options->connStrings.source_pguri) },
@@ -236,11 +234,11 @@ cli_copydb_getenv_file(CopyDBOptions *options)
 
 	if (!get_env_using_parsers_from_file(&parserArray))
 	{
-		/* errors have already been logged */
-		++errors;
+		log_error("Failed to read .env file");
+		return false;
 	}
 
-	return errors == 0;
+	return true;
 }
 
 

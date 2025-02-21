@@ -16,5 +16,5 @@
      --restart                     Allow restarting when temp files exist already
      --resume                      Allow resuming operations after a failure
      --not-consistent              Allow taking a new snapshot on the source database
-     --connection-retry-timeout    Number of seconds to retry before connection times out
+     --connection-retry-timeout    Number of seconds to retry connecting before timing out
    

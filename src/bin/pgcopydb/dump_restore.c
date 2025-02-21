@@ -32,7 +32,7 @@ static bool copydb_copy_database_properties_hook(void *ctx,
 
 static bool copydb_write_restore_list_hook(void *ctx,
 										   ArchiveContentItem *item);
-static void try_update_connection_string();
+static bool try_update_connection_string(CopyDataSpec *specs, ConnectionType connType);
 
 
 /*
@@ -92,10 +92,10 @@ copydb_objectid_has_been_processed_already(CopyDataSpec *specs,
 
 
 /*
- * try_update_connection_string tries to connect to given connection,
- * updating copyDataSpec if pgsql automatically changes its connection string.
+ * tries to connect to given connection, updating copyDataSpec if pgsql
+ * automatically changes its connection string.
  */
-static void
+static bool
 try_update_connection_string(CopyDataSpec *specs, ConnectionType connType)
 {
 	/* Check if we still can connect to given connection type */
@@ -111,6 +111,7 @@ try_update_connection_string(CopyDataSpec *specs, ConnectionType connType)
 		log_error("Failed to connect to %s database, "
 				  "see above for details",
 				  connType == PGSQL_CONN_TARGET ? "target" : "source");
+		return false;
 	}
 
 	/* If url changed in pgsql, update specs */
@@ -127,6 +128,7 @@ try_update_connection_string(CopyDataSpec *specs, ConnectionType connType)
 			specs->connStrings.safeSourcePGURI = conn.safeURI;
 		}
 	}
+	return true;
 }
 
 
@@ -161,7 +163,11 @@ copydb_dump_source_schema(CopyDataSpec *specs,
 	}
 	else
 	{
-		try_update_connection_string(specs, PGSQL_CONN_SOURCE);
+		if (!try_update_connection_string(specs, PGSQL_CONN_SOURCE))
+		{
+			/* errors have already been logged */
+			return false;
+		}
 		if (!pg_dump_db(&(specs->pgPaths),
 						&(specs->connStrings),
 						snapshot,
@@ -249,7 +255,11 @@ copydb_target_prepare_schema(CopyDataSpec *specs)
 		}
 	}
 
-	try_update_connection_string(specs, PGSQL_CONN_TARGET);
+	if (!try_update_connection_string(specs, PGSQL_CONN_TARGET))
+	{
+		/* errors have already been logged */
+		return false;
+	}
 
 	specs->restoreOptions.section = PG_RESTORE_SECTION_PRE_DATA;
 	if (!pg_restore_db(&(specs->pgPaths),
@@ -607,7 +617,11 @@ copydb_target_finalize_schema(CopyDataSpec *specs)
 		return false;
 	}
 
-	try_update_connection_string(specs, PGSQL_CONN_TARGET);
+	if (!try_update_connection_string(specs, PGSQL_CONN_TARGET))
+	{
+		/* errors have already been logged */
+		return false;
+	}
 
 	specs->restoreOptions.section = PG_RESTORE_SECTION_POST_DATA;
 	if (!pg_restore_db(&(specs->pgPaths),

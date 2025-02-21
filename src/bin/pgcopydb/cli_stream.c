@@ -60,7 +60,7 @@ static CommandLine stream_setup_command =
 		"  --wal2json-numeric-as-string  Print numeric data type as string when using wal2json output plugin\n"
 		"  --slot-name                   Stream changes recorded by this slot\n"
 		"  --origin                      Name of the Postgres replication origin\n"
-		"  --connection-retry-timeout    Number of seconds to retry before connection times out\n",
+		"  --connection-retry-timeout    Number of seconds to retry connecting before timing out\n",
 		cli_stream_getopts,
 		cli_stream_setup);
 

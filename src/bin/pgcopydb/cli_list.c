@@ -114,7 +114,7 @@ static CommandLine list_table_parts_command =
 		"  --split-max-parts             Maximum number of jobs for Same-table concurrency \n" \
 		"  --skip-split-by-ctid          Skip the ctid split\n"
 		"  --estimate-table-sizes        Allow using estimates for relation sizes\n"
-		"  --connection-retry-timeout    Number of seconds to retry before connection times out\n",
+		"  --connection-retry-timeout    Number of seconds to retry connecting before timing out\n",
 		cli_list_db_getopts,
 		cli_list_table_parts);
 
@@ -246,8 +246,6 @@ cli_list_getenv(ListDBOptions *options)
 static bool
 cli_list_getenv_file(ListDBOptions *options)
 {
-	int errors = 0;
-
 	EnvParser parsers[] = {
 		{ PGCOPYDB_SOURCE_PGURI, ENV_TYPE_STR_PTR,
 		  &(options->connStrings.source_pguri) },
@@ -264,10 +262,10 @@ cli_list_getenv_file(ListDBOptions *options)
 	if (!get_env_using_parsers_from_file(&parserArray))
 	{
 		/* errors have already been logged */
-		++errors;
+		return false;
 	}
 
-	return errors == 0;
+	return true;
 }
 
 

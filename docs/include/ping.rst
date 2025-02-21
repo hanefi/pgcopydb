@@ -5,5 +5,5 @@
    
      --source                      Postgres URI to the source database
      --target                      Postgres URI to the target database
-     --connection-retry-timeout    Number of seconds to retry before connection times out
+     --connection-retry-timeout    Number of seconds to retry connecting before timing out
    

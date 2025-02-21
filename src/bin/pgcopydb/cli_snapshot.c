@@ -35,7 +35,7 @@ CommandLine snapshot_command =
 		"  --plugin                      Output plugin to use (test_decoding, wal2json)\n"
 		"  --wal2json-numeric-as-string  Print numeric data type as string when using wal2json output plugin\n"
 		"  --slot-name                   Use this Postgres replication slot name\n"
-		"  --connection-retry-timeout    Number of seconds to retry before connection times out\n",
+		"  --connection-retry-timeout    Number of seconds to retry connecting before timing out\n",
 		cli_create_snapshot_getopts,
 		cli_create_snapshot);
 

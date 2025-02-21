@@ -49,7 +49,7 @@ static CommandLine restore_schema_command =
 		"  --restart                     Allow restarting when temp files exist already\n"
 		"  --resume                      Allow resuming operations after a failure\n"
 		"  --not-consistent              Allow taking a new snapshot on the source database\n"
-		"  --connection-retry-timeout    Number of seconds to retry before connection times out\n",
+		"  --connection-retry-timeout    Number of seconds to retry connecting before timing out\n",
 		cli_restore_schema_getopts,
 		cli_restore_schema);
 

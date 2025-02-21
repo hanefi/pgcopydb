@@ -7,5 +7,5 @@
      --target                      Directory where to save the dump files
      --dir                         Work directory to use
      --no-role-passwords           Do not dump passwords for roles
-     --connection-retry-timeout    Number of seconds to retry before connection times out
+     --connection-retry-timeout    Number of seconds to retry connecting before timing out
    

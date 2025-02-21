@@ -11,5 +11,5 @@
      --split-max-parts             Maximum number of jobs for Same-table concurrency 
      --skip-split-by-ctid          Skip the ctid split
      --estimate-table-sizes        Allow using estimates for relation sizes
-     --connection-retry-timeout    Number of seconds to retry before connection times out
+     --connection-retry-timeout    Number of seconds to retry connecting before timing out
    

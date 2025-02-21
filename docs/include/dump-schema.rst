@@ -9,5 +9,5 @@
      --skip-extensions             Skip restoring extensions
      --filters <filename>          Use the filters defined in <filename>
      --snapshot                    Use snapshot obtained with pg_export_snapshot
-     --connection-retry-timeout    Number of seconds to retry before connection times out
+     --connection-retry-timeout    Number of seconds to retry connecting before timing out
    

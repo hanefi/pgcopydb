@@ -39,7 +39,8 @@
 #define pqPipelineModeEnabled(conn) (false)
 #endif
 
-static void pgsql_set_connection_retry_timeout(PGSQL *pgsql, int connectionRetryTimeout);
+static void pgsql_set_interactive_retry_policy(ConnectionRetryPolicy *retryPolicy, int
+											   connectionRetryTimeout);
 
 static char * ConnectionTypeToString(ConnectionType connectionType);
 static void log_connection_error(PGconn *connection, int logLevel);
@@ -180,12 +181,7 @@ pgsql_init(PGSQL *pgsql, char *url, ConnectionType connectionType, int
 	pgsql->connection = NULL;
 
 	/* set our default retry policy for interactive commands */
-	pgsql_set_interactive_retry_policy(&pgsql->retryPolicy);
-
-	if (connectionRetryTimeout > 0)
-	{
-		pgsql_set_connection_retry_timeout(pgsql, connectionRetryTimeout);
-	}
+	pgsql_set_interactive_retry_policy(&pgsql->retryPolicy, connectionRetryTimeout);
 
 	if (validate_connection_string(url))
 	{
@@ -231,25 +227,17 @@ pgsql_set_retry_policy(ConnectionRetryPolicy *retryPolicy,
 
 
 /*
- * pgsql_set_connection_retry_timeout updates the retry policy timeout
- * to given number of seconds
- */
-static void
-pgsql_set_connection_retry_timeout(PGSQL *pgsql, int connectionRetryTimeout)
-{
-	pgsql->retryPolicy.maxT = connectionRetryTimeout;
-}
-
-
-/*
  * pgsql_set_interactive_retry_policy sets the retry policy to 1 minute of
  * total retrying time, unbounded number of attempts, and up to 2 seconds
  * of sleep time in between attempts.
  */
-void
-pgsql_set_interactive_retry_policy(ConnectionRetryPolicy *retryPolicy)
+static void
+pgsql_set_interactive_retry_policy(ConnectionRetryPolicy *retryPolicy, int
+								   connectionRetryTimeout)
 {
 	(void) pgsql_set_retry_policy(retryPolicy,
+								  connectionRetryTimeout > 0 ?
+								  connectionRetryTimeout :
 								  POSTGRES_PING_RETRY_TIMEOUT,
 								  -1, /* unbounded number of attempts */
 								  POSTGRES_PING_RETRY_CAP_SLEEP_TIME,

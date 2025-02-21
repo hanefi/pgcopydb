@@ -39,7 +39,7 @@ static CommandLine dump_schema_command =
 		"  --skip-extensions             Skip restoring extensions\n" \
 		"  --filters <filename>          Use the filters defined in <filename>\n"
 		"  --snapshot                    Use snapshot obtained with pg_export_snapshot\n"
-		"  --connection-retry-timeout    Number of seconds to retry before connection times out\n",
+		"  --connection-retry-timeout    Number of seconds to retry connecting before timing out\n",
 		cli_dump_schema_getopts,
 		cli_dump_schema);
 
@@ -52,7 +52,7 @@ static CommandLine dump_roles_command =
 		"  --target                      Directory where to save the dump files\n"
 		"  --dir                         Work directory to use\n"
 		"  --no-role-passwords           Do not dump passwords for roles\n"
-		"  --connection-retry-timeout    Number of seconds to retry before connection times out\n",
+		"  --connection-retry-timeout    Number of seconds to retry connecting before timing out\n",
 		cli_dump_schema_getopts,
 		cli_dump_roles);
 
