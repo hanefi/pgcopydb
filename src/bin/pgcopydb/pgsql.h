@@ -242,7 +242,8 @@ typedef struct GUC
 	char *value;
 } GUC;
 
-bool pgsql_init(PGSQL *pgsql, char *url, ConnectionType connectionType);
+bool pgsql_init(PGSQL *pgsql, char *url, ConnectionType connectionType,
+				int connectionRetryTimeout);
 
 PGconn * pgsql_open_connection(PGSQL *pgsql);
 
@@ -251,7 +252,6 @@ void pgsql_set_retry_policy(ConnectionRetryPolicy *retryPolicy,
 							int maxR,
 							int maxSleepTime,
 							int baseSleepTime);
-void pgsql_set_interactive_retry_policy(ConnectionRetryPolicy *retryPolicy);
 int pgsql_compute_connection_retry_sleep_time(ConnectionRetryPolicy *retryPolicy);
 bool pgsql_retry_policy_expired(ConnectionRetryPolicy *retryPolicy);
 
@@ -497,7 +497,8 @@ bool pgsql_init_stream(LogicalStreamClient *client,
 					   StreamOutputPlugin plugin,
 					   const char *slotName,
 					   XLogRecPtr startpos,
-					   XLogRecPtr endpos);
+					   XLogRecPtr endpos,
+					   int connectionRetryTimeout);
 
 StreamOutputPlugin OutputPluginFromString(char *plugin);
 char * OutputPluginToString(StreamOutputPlugin plugin);

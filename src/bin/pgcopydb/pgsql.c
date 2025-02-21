@@ -39,10 +39,15 @@
 #define pqPipelineModeEnabled(conn) (false)
 #endif
 
+static void pgsql_set_interactive_retry_policy(ConnectionRetryPolicy *retryPolicy, int
+											   connectionRetryTimeout);
+
 static char * ConnectionTypeToString(ConnectionType connectionType);
 static void log_connection_error(PGconn *connection, int logLevel);
 static void pgAutoCtlDefaultNoticeProcessor(void *arg, const char *message);
 static bool pgsql_retry_open_connection(PGSQL *pgsql);
+
+static void pgsql_fetch_connection_string(PGSQL *pgsql);
 
 static void pgsql_handle_notifications(PGSQL *pgsql);
 
@@ -169,13 +174,15 @@ fetchedRows(void *ctx, PGresult *result)
  * URL or connection string.
  */
 bool
-pgsql_init(PGSQL *pgsql, char *url, ConnectionType connectionType)
+pgsql_init(PGSQL *pgsql, char *url, ConnectionType connectionType, int
+		   connectionRetryTimeout)
 {
 	pgsql->connectionType = connectionType;
 	pgsql->connection = NULL;
 
 	/* set our default retry policy for interactive commands */
-	(void) pgsql_set_interactive_retry_policy(&(pgsql->retryPolicy));
+	pgsql_set_interactive_retry_policy(&pgsql->retryPolicy, connectionRetryTimeout);
+
 	if (validate_connection_string(url))
 	{
 		pgsql->connectionString = url;
@@ -224,10 +231,13 @@ pgsql_set_retry_policy(ConnectionRetryPolicy *retryPolicy,
  * total retrying time, unbounded number of attempts, and up to 2 seconds
  * of sleep time in between attempts.
  */
-void
-pgsql_set_interactive_retry_policy(ConnectionRetryPolicy *retryPolicy)
+static void
+pgsql_set_interactive_retry_policy(ConnectionRetryPolicy *retryPolicy, int
+								   connectionRetryTimeout)
 {
 	(void) pgsql_set_retry_policy(retryPolicy,
+								  connectionRetryTimeout > 0 ?
+								  connectionRetryTimeout :
 								  POSTGRES_PING_RETRY_TIMEOUT,
 								  -1, /* unbounded number of attempts */
 								  POSTGRES_PING_RETRY_CAP_SLEEP_TIME,
@@ -597,6 +607,40 @@ pgsql_open_connection(PGSQL *pgsql)
 
 
 /*
+ * pgsql_fetch_connection_string tries to update the connection string
+ * from the .env file, if it exists.
+ */
+void
+pgsql_fetch_connection_string(PGSQL *pgsql)
+{
+	const char *oldUrl = pgsql->connectionString;
+
+	EnvParser parsers[] = {
+		{
+			pgsql->connectionType == PGSQL_CONN_SOURCE
+			? PGCOPYDB_SOURCE_PGURI
+			: PGCOPYDB_TARGET_PGURI,
+			ENV_TYPE_STR_PTR,
+			&(pgsql->connectionString)
+		}
+	};
+	EnvParserArray parserArray = { .array = parsers, count: 1 };
+
+	if (!get_env_using_parsers_from_file(&parserArray))
+	{
+		log_error("Failed to read .env file for new connection string");
+		return;
+	}
+
+	if (strcmp(oldUrl, pgsql->connectionString) != 0)
+	{
+		(void) parse_and_scrub_connection_string(pgsql->connectionString,
+												 &(pgsql->safeURI));
+	}
+}
+
+
+/*
  * Refrain from warning too often. The user certainly wants to know that we are
  * still trying to connect, though warning several times a second is not going
  * to help anyone. A good trade-off seems to be a warning every 30s.
@@ -664,6 +708,9 @@ pgsql_retry_open_connection(PGSQL *pgsql)
 
 		/* we have milliseconds, pg_usleep() wants microseconds */
 		(void) pg_usleep(sleep * 1000);
+
+		/* fetch the connection string from the .env file */
+		pgsql_fetch_connection_string(pgsql);
 
 		log_sql("PQping(%s): slept %d ms on attempt %d",
 				pgsql->safeURI.pguri,
@@ -3519,11 +3566,12 @@ pgsql_init_stream(LogicalStreamClient *client,
 				  StreamOutputPlugin plugin,
 				  const char *slotName,
 				  XLogRecPtr startpos,
-				  XLogRecPtr endpos)
+				  XLogRecPtr endpos,
+				  int connectionRetryTimeout)
 {
 	PGSQL *pgsql = &(client->pgsql);
 
-	if (!pgsql_init(pgsql, (char *) pguri, PGSQL_CONN_SOURCE))
+	if (!pgsql_init(pgsql, (char *) pguri, PGSQL_CONN_SOURCE, connectionRetryTimeout))
 	{
 		/* errors have already been logged */
 		return false;
