@@ -64,10 +64,10 @@ cli_ping_getopts(int argc, char **argv)
 		exit(EXIT_CODE_BAD_ARGS);
 	}
 
-	/* read values from .env file */
+	/* read values from pgcopydb.conf file */
 	if (!cli_copydb_getenv_file(&options))
 	{
-		log_fatal("Failed to read default values from .env file");
+		log_fatal("Failed to read default values from pgcopydb.conf file");
 		exit(EXIT_CODE_BAD_ARGS);
 	}
 

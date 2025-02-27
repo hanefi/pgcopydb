@@ -184,7 +184,7 @@ cli_copydb_getenv_split(SplitTableLargerThan *splitTablesLargerThan)
 
 
 /*
- * reads the .env file and fills-in the command line options
+ * reads the pgcopydb.conf file and fills-in the command line options
  */
 bool
 cli_copydb_getenv_file(CopyDBOptions *options)
@@ -234,7 +234,7 @@ cli_copydb_getenv_file(CopyDBOptions *options)
 
 	if (!get_env_using_parsers_from_file(&parserArray))
 	{
-		log_error("Failed to read .env file");
+		log_error("Failed to read pgcopydb.conf file");
 		return false;
 	}
 
@@ -681,10 +681,10 @@ cli_copy_db_getopts(int argc, char **argv)
 		exit(EXIT_CODE_BAD_ARGS);
 	}
 
-	/* read values from .env file */
+	/* read values from pgcopydb.conf file */
 	if (!cli_copydb_getenv_file(&options))
 	{
-		log_fatal("Failed to read default values from .env file");
+		log_fatal("Failed to read default values from pgcopydb.conf file");
 		exit(EXIT_CODE_BAD_ARGS);
 	}
 
