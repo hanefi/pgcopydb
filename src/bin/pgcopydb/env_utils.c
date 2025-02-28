@@ -177,20 +177,27 @@ parse_conf_file(const char *filename, EnvParserArray *parsers)
 	char *fileContents = NULL;
 	long fileSize = 0L;
 
-	/* read the current postgresql.conf contents */
 	if (!read_file(filename, &fileContents, &fileSize))
 	{
+		log_error("Failed to read %s", filename);
 		return false;
 	}
 
 	ini_t *ini = ini_load(fileContents, NULL);
+	if (ini == NULL)
+	{
+		log_error("Failed to parse %s", filename);
+		return false;
+	}
 
 	int confSectionIndex = ini_find_section(ini, "env", 3);
 	if (confSectionIndex == INI_NOT_FOUND)
 	{
 		log_error("Failed to find section [env] in %s", filename);
+		ini_destroy(ini);
 		return false;
 	}
+
 	for (int i = 0; i < parsers->count; i++)
 	{
 		int envNameIndex = ini_find_property(ini, confSectionIndex,
@@ -203,25 +210,27 @@ parse_conf_file(const char *filename, EnvParserArray *parsers)
 											&parsers->array[i]))
 			{
 				log_error("Failed to parse %s", parsers->array[i].envname);
+				ini_destroy(ini);
 				return false;
 			}
 		}
 	}
-	ini_destroy(ini);
 	return true;
 }
 
 
 /*
- * get_env_using_parsers_from_file reads the environment variables from
- * XDG_CONFIG_HOME/pgcopydb.conf file and uses the parsers to parse them.
+ * Reads the environment variables from
+ * pgcopydb.conf file and uses the parsers to parse them.
  */
 bool
 get_env_using_parsers_from_file(EnvParserArray *parsers)
 {
 	char envFilePath[BUFSIZE];
 	const char *env_vars[] = { "XDG_CONFIG_HOME", "HOME" };
-	const char *formats[] = { "%s/pgcopydb.conf", "%s/.config/pgcopydb.conf" };
+	const char *formats[] = {
+		"%s/pgcopydb/pgcopydb.conf", "%s/.config/pgcopydb/pgcopydb.conf"
+	};
 
 	for (int i = 0; i < 2; i++)
 	{
@@ -233,7 +242,7 @@ get_env_using_parsers_from_file(EnvParserArray *parsers)
 			{
 				if (!parse_conf_file(envFilePath, parsers))
 				{
-					log_error("Failed to read %s", envFilePath);
+					/* errors have already been logged */
 					return false;
 				}
 				return true;
@@ -247,7 +256,7 @@ get_env_using_parsers_from_file(EnvParserArray *parsers)
 
 
 /*
- * get_env_using_parsers iterates over the parsers array and calls
+ * Iterates over the parsers array and calls
  * get_env_using_parser for each parser.
  */
 bool

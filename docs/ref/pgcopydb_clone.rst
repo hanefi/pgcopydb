@@ -342,8 +342,8 @@ retries is determined by the ``--connection-retry-timeout`` parameter, which
 defaults to 60 seconds.
 
 Before each retry, the command will attempt to fetch updated connection strings from
-the ``pgcopydb.conf`` file located in either ``${XDG_CONFIG_HOME}/pgcopydb.conf`` or
-``${HOME}/.config/pgcopydb.conf``.
+the ``pgcopydb.conf`` file located in either ``${XDG_CONFIG_HOME}/pgcopydb/pgcopydb.conf`` or
+``${HOME}/.config/pgcopydb/pgcopydb.conf``.
 
 Example ``pgcopydb.conf`` file:
 
@@ -738,7 +738,7 @@ Environment
 
 Environment variables that begin with ``PGCOPYDB_`` can be set directly in the
 environment or read from the ``pgcopydb.conf`` file located in either
-``${XDG_CONFIG_HOME}/pgcopydb.conf`` or ``${HOME}/.config/pgcopydb.conf``.
+``${XDG_CONFIG_HOME}/pgcopydb/pgcopydb.conf`` or ``${HOME}/.config/pgcopydb/pgcopydb.conf``.
 
 Example ``pgcopydb.conf`` file:
 
